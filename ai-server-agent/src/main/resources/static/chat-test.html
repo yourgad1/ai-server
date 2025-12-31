@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSE Chat 测试页面</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            height: 100vh;
+            background-color: #f0f2f5;
+        }
+        
+        /* 会话列表样式 */
+        #session-list {
+            width: 250px;
+            background-color: #ffffff;
+            border-right: 1px solid #e0e0e0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        #session-header {
+            padding: 15px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: #fafafa;
+        }
+        
+        #session-header h2 {
+            margin: 0;
+            font-size: 18px;
+            color: #333;
+        }
+        
+        #new-session-btn {
+            padding: 6px 12px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        #new-session-btn:hover {
+            background-color: #45a049;
+        }
+        
+        #sessions {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+        
+        .session-item {
+            padding: 12px;
+            margin-bottom: 8px;
+            background-color: #f5f5f5;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 1px solid transparent;
+        }
+        
+        .session-item:hover {
+            background-color: #e8f0fe;
+            border-color: #d0e3ff;
+        }
+        
+        .session-item.active {
+            background-color: #e3f2fd;
+            border-color: #2196f3;
+            box-shadow: 0 2px 4px rgba(33, 150, 243, 0.1);
+        }
+        
+        .session-title {
+            font-weight: bold;
+            font-size: 14px;
+            color: #333;
+            margin-bottom: 4px;
+        }
+        
+        .session-time {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        /* 聊天区域样式 */
+        #chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: #f9f9f9;
+            min-width: 0; /* 防止flex子元素溢出 */
+        }
+        
+        /* 确保会话列表始终显示 */
+        #session-list {
+            flex-shrink: 0; /* 防止会话列表被压缩 */
+            width: 250px;
+            background-color: #ffffff;
+            border-right: 1px solid #e0e0e0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        #chat-header {
+            padding: 15px;
+            background-color: #ffffff;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        #chat-header h1 {
+            margin: 0;
+            font-size: 20px;
+            color: #333;
+        }
+        
+        #current-session-info {
+            font-size: 14px;
+            color: #666;
+        }
+        
+        #message-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+            background-color: #f9f9f9;
+        }
+        
+        .message {
+            margin-bottom: 10px;
+            padding: 8px 12px;
+            border-radius: 6px;
+        }
+        
+        .user-message {
+            background-color: #dcf8c6;
+            text-align: right;
+            margin-left: 30%;
+        }
+        
+        .ai-message {
+            background-color: #ffffff;
+            margin-right: 30%;
+            border: 1px solid #eee;
+        }
+        
+        .system-message {
+            background-color: #f0f0f0;
+            font-style: italic;
+            text-align: center;
+            margin: 0 20%;
+        }
+        
+        .error-message {
+            background-color: #ffebee;
+            color: #c62828;
+            border: 1px solid #ffcdd2;
+            margin: 0 20%;
+            font-weight: bold;
+        }
+        
+        #input-area {
+            display: flex;
+            padding: 10px;
+            background-color: #fff;
+            border-top: 1px solid #ccc;
+        }
+        
+        #message-input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin-right: 10px;
+        }
+        
+        #send-button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        #send-button:hover {
+            background-color: #45a049;
+        }
+        
+        #status-area {
+            margin-top: 10px;
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #4CAF50;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* 滚动条样式 */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    </style>
+</head>
+<body>
+    <!-- 会话列表 -->
+    <div id="session-list">
+        <div id="session-header">
+            <h2>会话列表</h2>
+            <button id="new-session-btn">新建会话</button>
+        </div>
+        <div id="sessions">
+            <!-- 会话项将通过JavaScript动态生成 -->
+        </div>
+    </div>
+    
+    <!-- 聊天区域 -->
+    <div id="chat-container">
+        <div id="chat-header">
+            <h1>SSE Chat 测试页面</h1>
+            <div id="current-session-info"></div>
+        </div>
+        <div id="message-area">
+            <div class="system-message">欢迎使用SSE Chat测试工具！请选择或新建一个会话开始聊天。</div>
+        </div>
+        <div id="input-area">
+            <input type="text" id="message-input" placeholder="请输入您的消息..." autocomplete="off">
+            <button id="send-button">发送</button>
+        </div>
+        <div id="status-area">
+            <span id="status">未连接</span>
+        </div>
+    </div>
+
+    <script>
+        // DOM元素
+        const messageArea = document.getElementById('message-area');
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('send-button');
+        const statusElement = document.getElementById('status');
+        const sessionList = document.getElementById('sessions');
+        const newSessionBtn = document.getElementById('new-session-btn');
+        const currentSessionInfo = document.getElementById('current-session-info');
+        
+        // 会话管理
+        let currentSessionId = null;
+        let userId = localStorage.getItem('chat-user-id');
+        
+        // 初始化用户ID
+        if (!userId) {
+            userId = 'user-' + Date.now();
+            localStorage.setItem('chat-user-id', userId);
+        }
+        
+        // 会话数据管理
+        let sessions = [];
+        
+        // 添加消息到界面
+        function addMessage(message) {
+            // 确保只有非空消息才添加
+            if (!message || !message.messageContent || !message.messageContent.trim()) {
+                return;
+            }
+            
+            let messageContent = message.messageContent.trim();
+            
+            // 尝试解析JSON格式的messageContent
+            try {
+                const parsedContent = JSON.parse(messageContent);
+                // 如果解析成功，且包含answer字段，则使用answer字段的值
+                if (parsedContent.answer) {
+                    messageContent = parsedContent.answer;
+                }
+            } catch (e) {
+                // 如果不是JSON格式，直接使用原始内容
+                console.debug('消息内容不是JSON格式，直接使用原始内容:', messageContent);
+            }
+            
+            const messageDiv = document.createElement('div');
+            // 根据messageType确定消息类型
+            let messageType = 'ai';
+            if (message.messageType === 'user') {
+                // 用户消息显示在右侧
+                messageType = 'user';
+            } else if (message.messageType === 'message') {
+                // AI消息显示在左侧
+                messageType = 'ai';
+            } else if (message.messageType === 'log') {
+                messageType = 'system';
+            } else if (message.messageType === 'error') {
+                messageType = 'error';
+            }
+            
+            messageDiv.className = getMessageClassName(messageType);
+            // 支持HTML格式显示，同时防止XSS攻击
+            messageDiv.innerHTML = escapeHtml(messageContent);
+            messageArea.appendChild(messageDiv);
+            messageArea.scrollTop = messageArea.scrollHeight;
+        }
+        
+        // 获取消息的CSS类名
+        function getMessageClassName(type) {
+            switch (type) {
+                case 'user':
+                    return 'user-message';
+                case 'system':
+                    return 'system-message';
+                case 'error':
+                    return 'error-message';
+                default:
+                    return 'ai-message';
+            }
+        }
+        
+        // 更新状态
+        function updateStatus(text) {
+            statusElement.textContent = text;
+        }
+        
+        // 显示加载状态
+        function showLoading(show) {
+            if (show) {
+                const loadingDiv = document.createElement('span');
+                loadingDiv.className = 'loading';
+                loadingDiv.id = 'loading-indicator';
+                statusElement.appendChild(loadingDiv);
+            } else {
+                const loadingDiv = document.getElementById('loading-indicator');
+                if (loadingDiv) {
+                    loadingDiv.remove();
+                }
+            }
+        }
+        
+        // 从后端获取会话列表
+        async function fetchSessions() {
+            try {
+                const response = await fetch('http://localhost:8503/c2000/ai/session/list');
+                const result = await response.json();
+                
+                console.log('获取会话列表响应:', result);
+                
+                // 检查响应格式，兼容多种格式
+                let sessionsData = [];
+                if (result && Array.isArray(result)) {
+                    // 直接返回数组的格式
+                    sessionsData = result;
+                } else if (result.code === 0 && result.data) {
+                    // 正常的ResponseAi格式
+                    sessionsData = result.data;
+                } else if (result.data && Array.isArray(result.data)) {
+                    // 包含data字段的对象格式
+                    sessionsData = result.data;
+                } else if (result.event && result.data && Array.isArray(result.data)) {
+                    // 特殊的响应格式：包含event和data字段
+                    sessionsData = result.data;
+                }
+                
+                if (sessionsData.length > 0) {
+                    sessions = sessionsData;
+                    renderSessions();
+                } else {
+                    sessions = [];
+                    renderSessions();
+                    console.warn('获取会话列表成功，但会话列表为空');
+                }
+            } catch (error) {
+                console.error('获取会话列表出错:', error);
+            }
+        }
+        
+        // 合并相同会话的消息内容
+        function mergeSessionMessages(messages) {
+            // 按消息类型分组
+            const mergedMessages = [];
+            let currentMessage = null;
+            let currentType = null;
+            let currentContent = '';
+            
+            messages.forEach(message => {
+                // 解析消息内容
+                let messageContent = message.messageContent.trim();
+                
+                // 尝试解析JSON格式的messageContent
+                try {
+                    const parsedContent = JSON.parse(messageContent);
+                    // 如果解析成功，且包含answer字段，则使用answer字段的值
+                    if (parsedContent.answer) {
+                        messageContent = parsedContent.answer;
+                    }
+                } catch (e) {
+                    // 如果不是JSON格式，直接使用原始内容
+                    console.debug('消息内容不是JSON格式，直接使用原始内容:', messageContent);
+                }
+                
+                // 确定消息类型
+                let messageType = 'ai';
+                if (message.messageType === 'user') {
+                    messageType = 'user';
+                } else if (message.messageType === 'message') {
+                    messageType = 'ai';
+                } else if (message.messageType === 'log') {
+                    messageType = 'system';
+                } else if (message.messageType === 'error') {
+                    messageType = 'error';
+                }
+                
+                // 如果是相同类型的消息，合并内容
+                if (messageType === currentType) {
+                    currentContent += ' ' + messageContent;
+                } else {
+                    // 如果是不同类型，保存当前消息并开始新消息
+                    if (currentMessage) {
+                        mergedMessages.push({
+                            messageType: currentType,
+                            messageContent: currentContent.trim(),
+                            sendTime: currentMessage.sendTime
+                        });
+                    }
+                    
+                    // 开始新消息
+                    currentMessage = message;
+                    currentType = messageType;
+                    currentContent = messageContent;
+                }
+            });
+            
+            // 添加最后一条消息
+            if (currentMessage) {
+                mergedMessages.push({
+                    messageType: currentType,
+                    messageContent: currentContent.trim(),
+                    sendTime: currentMessage.sendTime
+                });
+            }
+            
+            return mergedMessages;
+        }
+        
+        // 从后端获取会话消息
+        async function fetchSessionMessages(sessionId) {
+            try {
+                // 添加groupByConnectId=false参数，直接返回消息列表，不分组
+                const response = await fetch(`http://localhost:8503/c2000/ai/session/messages/${sessionId}?groupByConnectId=false`);
+                const result = await response.json();
+                
+                console.log('获取会话消息响应:', result);
+                
+                // 检查响应格式，兼容多种格式
+                let messagesData = [];
+                if (result.code === 0 && result.data) {
+                    // 正常的ResponseAi格式
+                    messagesData = result.data;
+                } else if (result.data && Array.isArray(result.data)) {
+                    // 直接返回data数组的格式
+                    messagesData = result.data;
+                } else if (result.event && result.data && Array.isArray(result.data)) {
+                    // 特殊的响应格式：包含event和data字段
+                    messagesData = result.data;
+                }
+                
+                if (messagesData.length > 0) {
+                    // 清空消息区域
+                    messageArea.innerHTML = '';
+                    
+                    // 合并相同类型的消息
+                    const mergedMessages = mergeSessionMessages(messagesData);
+                    
+                    // 添加合并后的消息到界面
+                    mergedMessages.forEach(message => {
+                        addMessage(message);
+                    });
+                } else {
+                    messageArea.innerHTML = '<div class="system-message">该会话中还没有消息。</div>';
+                }
+            } catch (error) {
+                console.error('获取会话消息出错:', error);
+                messageArea.innerHTML = '<div class="error-message">获取会话消息失败: ' + error.message + '</div>';
+            }
+        }
+        
+        // 渲染会话列表
+        function renderSessions() {
+            sessionList.innerHTML = '';
+            
+            sessions.forEach(session => {
+                const sessionItem = document.createElement('div');
+                sessionItem.className = `session-item ${session.sessionId === currentSessionId ? 'active' : ''}`;
+                sessionItem.dataset.sessionId = session.sessionId;
+                
+                const sessionTitle = document.createElement('div');
+                sessionTitle.className = 'session-title';
+                sessionTitle.textContent = session.sessionName || '未命名会话';
+                
+                const sessionTime = document.createElement('div');
+                sessionTime.className = 'session-time';
+                sessionTime.textContent = new Date(session.lastActiveAt || session.createdAt).toLocaleString();
+                
+                sessionItem.appendChild(sessionTitle);
+                sessionItem.appendChild(sessionTime);
+                
+                sessionItem.addEventListener('click', () => {
+                    switchSession(session.sessionId);
+                });
+                
+                sessionList.appendChild(sessionItem);
+            });
+        }
+        
+        // 切换会话
+        function switchSession(sessionId) {
+            currentSessionId = sessionId;
+            const session = sessions.find(s => s.sessionId === sessionId);
+            
+            if (session) {
+                // 更新当前会话信息显示
+                currentSessionInfo.textContent = `当前会话: ${session.sessionName || '未命名会话'}`;
+                
+                // 清空消息区域并显示加载状态
+                messageArea.innerHTML = '<div class="system-message">加载会话消息中...</div>';
+                
+                // 重新渲染会话列表以更新激活状态
+                renderSessions();
+                
+                // 从后端获取会话消息
+                fetchSessionMessages(sessionId);
+            }
+        }
+        
+        // 发送聊天请求
+        function sendChatMessage(message) {
+            // 添加用户消息到界面
+            const userMessage = {
+                messageType: 'user',
+                messageContent: message,
+                sendTime: new Date().toISOString()
+            };
+            addMessage(userMessage);
+            
+            // 清空输入框
+            messageInput.value = '';
+            
+            // 显示状态
+            updateStatus('连接中...');
+            showLoading(true);
+            
+            // 构建请求数据
+            const formData = new FormData();
+            const requestAi = {
+                message: message,
+                // 不设置userId，让后端使用默认值'test'
+                sessionId: currentSessionId, // 如果没有会话ID，会发送null，后端会自动创建
+                queryType: 'general'
+            };
+            
+            console.log('发送请求:', requestAi);
+            
+            // 使用Blob存储JSON数据
+            const requestAiBlob = new Blob([JSON.stringify(requestAi)], { type: 'application/json' });
+            formData.append('requestAi', requestAiBlob);
+            
+            // 发送请求到SSE接口
+            fetch('http://localhost:8503/c2000/ai/chat', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'Accept': 'text/event-stream',
+                    'Cache-Control': 'no-cache'
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP错误! 状态: ${response.status}`);
+                }
+                
+                updateStatus('已连接，接收消息中...');
+                
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                let aiMessage = '';
+                
+                // 处理SSE流
+                function readStream() {
+                    reader.read().then(({ done, value }) => {
+                        if (done) {
+                            updateStatus('连接已关闭');
+                            showLoading(false);
+                            // 连接关闭时，如果有累积的AI消息，确保它被正确添加到聊天框
+                            if (aiMessage && aiMessage.trim()) {
+                                updateAIMessage(aiMessage.trim());
+                                
+                                // 更新会话列表和当前会话
+                                if (currentSessionId) {
+                                    // 更新会话的最后更新时间
+                                    updateSessionLastActive(currentSessionId);
+                                }
+                                
+                                // 重新获取会话列表，确保最新会话信息
+                                fetchSessions().then(() => {
+                                    // 如果没有当前会话ID，尝试查找最新创建的会话
+                                    if (!currentSessionId && sessions.length > 0) {
+                                        // 按创建时间排序，找到最新的会话
+                                        const latestSession = sessions.sort((a, b) => {
+                                            return new Date(b.createdAt) - new Date(a.createdAt);
+                                        })[0];
+                                        
+                                        // 设置当前会话ID
+                                        currentSessionId = latestSession.sessionId;
+                                        localStorage.setItem('current-chat-session', currentSessionId);
+                                        
+                                        // 重新渲染会话列表以更新激活状态
+                                        renderSessions();
+                                    }
+                                });
+                                
+                                // 重置AI消息缓冲区
+                                aiMessage = '';
+                            }
+                            return;
+                        }
+                        
+                        const text = decoder.decode(value, { stream: true });
+                        buffer += text;
+                        
+                        // 处理接收到的文本
+                        const lines = buffer.split('\n');
+                        buffer = lines.pop() || ''; // 保留最后一行（可能不完整）
+                        
+                        for (const line of lines) {
+                            const trimmedLine = line.trim();
+                            if (trimmedLine.startsWith('data:')) {
+                                try {
+                                    const jsonStr = trimmedLine.substring(5).trim();
+                                    if (!jsonStr) continue;
+                                    
+                                    console.log('接收到数据片段:', jsonStr);
+                                    const eventData = JSON.parse(jsonStr);
+                                    
+                                    // 处理不同类型的消息
+                                    if (eventData.type === 'user') {
+                                        // 用户消息，不应该从服务器接收
+                                        console.log('收到用户消息（忽略）:', eventData);
+                                    } else if (eventData.type === 'error') {
+                                        // 错误消息
+                                        addMessage({ messageType: 'error', messageContent: '错误: ' + eventData.message });
+                                    } else if (eventData.type === 'log') {
+                                        // 日志消息
+                                        addMessage({ messageType: 'system', messageContent: '系统: ' + eventData.message });
+                                    } else if (eventData.type === 'message') {
+                                        // 普通消息，支持JSON格式解析
+                                        let messageContent = eventData.message;
+                                        
+                                        // 尝试解析JSON格式的消息内容
+                                        try {
+                                            const parsedContent = JSON.parse(messageContent);
+                                            // 如果解析成功，且包含answer字段，则使用answer字段的值
+                                            if (parsedContent.answer) {
+                                                messageContent = parsedContent.answer;
+                                            }
+                                        } catch (e) {
+                                            // 如果不是JSON格式，直接使用原始内容
+                                            console.debug('流式消息内容不是JSON格式，直接使用原始内容:', messageContent);
+                                        }
+                                        
+                                        aiMessage += messageContent;
+                                        updateAIMessage(aiMessage);
+                                    } else if (eventData.event === 'connected') {
+                                        // 连接建立事件
+                                        addMessage({ messageType: 'system', messageContent: '系统: 连接已建立' });
+                                    } else {
+                                        // 兼容旧格式，支持JSON解析
+                                        let messageContent = '';
+                                        if (eventData.message) {
+                                            messageContent = eventData.message;
+                                        } else if (eventData.answer) {
+                                            messageContent = eventData.answer;
+                                        }
+                                        
+                                        // 尝试解析JSON格式的消息内容
+                                        try {
+                                            const parsedContent = JSON.parse(messageContent);
+                                            // 如果解析成功，且包含answer字段，则使用answer字段的值
+                                            if (parsedContent.answer) {
+                                                messageContent = parsedContent.answer;
+                                            }
+                                        } catch (e) {
+                                            // 如果不是JSON格式，直接使用原始内容
+                                            console.debug('流式消息内容不是JSON格式，直接使用原始内容:', messageContent);
+                                        }
+                                        
+                                        if (messageContent) {
+                                            aiMessage += messageContent;
+                                            updateAIMessage(aiMessage);
+                                        }
+                                    }
+                                } catch (e) {
+                                    console.error('JSON解析错误:', e);
+                                    addMessage({ messageType: 'error', messageContent: '系统: JSON解析错误' });
+                                }
+                            } else if (trimmedLine && !trimmedLine.startsWith(':')) {
+                                // 非SSE格式的普通文本，可能是多个事件连在一起的情况
+                                // 尝试按event:分割，处理多个事件
+                                const events = trimmedLine.split(/event:|event_:/g);
+                                for (let i = 1; i < events.length; i++) {
+                                    const eventPart = events[i].trim();
+                                    if (!eventPart) continue;
+                                    
+                                    // 提取事件类型和数据
+                                    const eventTypeMatch = eventPart.match(/^\w+/);
+                                    if (eventTypeMatch) {
+                                        const eventType = eventTypeMatch[0];
+                                        const eventDataPart = eventPart.substring(eventType.length).trim();
+                                        
+                                        // 处理message事件
+                                        if (eventType === 'message') {
+                                            // 尝试解析JSON数据
+                                            try {
+                                                const jsonMatch = eventDataPart.match(/\{[^}]*\}/);
+                                                if (jsonMatch) {
+                                                    const parsedData = JSON.parse(jsonMatch[0]);
+                                                    let messageContent = parsedData.answer || parsedData.message || eventDataPart;
+                                                    aiMessage += messageContent;
+                                                    updateAIMessage(aiMessage);
+                                                } else {
+                                                    // 如果不是JSON，直接添加文本
+                                                    aiMessage += eventDataPart;
+                                                    updateAIMessage(aiMessage);
+                                                }
+                                            } catch (e) {
+                                                // 解析失败，直接添加文本
+                                                aiMessage += eventDataPart;
+                                                updateAIMessage(aiMessage);
+                                            }
+                                        } else if (eventType === 'user') {
+                                            // 忽略用户消息
+                                        } else if (eventType === 'init' || eventType === '_init') {
+                                            // 忽略初始化事件
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        readStream();
+                    }).catch(error => {
+                        console.error('读取流错误:', error);
+                        updateStatus('连接错误: ' + error.message);
+                        showLoading(false);
+                        // 错误发生时，如果有累积的AI消息，确保它被正确添加到聊天框
+                        if (aiMessage && aiMessage.trim()) {
+                            updateAIMessage(aiMessage.trim());
+                            // 更新会话的最后更新时间
+                            if (currentSessionId) {
+                                updateSessionLastActive(currentSessionId);
+                            }
+                            // 重置AI消息缓冲区
+                            aiMessage = '';
+                        }
+                        addMessage({ messageType: 'error', messageContent: '系统: 连接错误' });
+                    });
+                }
+                
+                // 开始读取流
+                readStream();
+                
+            })
+            .catch(error => {
+                console.error('请求错误:', error);
+                updateStatus('请求错误: ' + error.message);
+                showLoading(false);
+                addMessage('系统: 请求错误 - ' + error.message, 'error');
+            });
+        }
+        
+        // 更新会话的最后活跃时间
+        function updateSessionLastActive(sessionId) {
+            // 从会话列表中找到对应的会话
+            const session = sessions.find(s => s.sessionId === sessionId);
+            if (session) {
+                // 更新会话的最后活跃时间
+                session.lastActiveAt = new Date().toISOString();
+                // 重新渲染会话列表
+                renderSessions();
+            }
+        }
+        
+        // HTML转义函数，防止XSS攻击
+        function escapeHtml(text) {
+            if (typeof text !== 'string') {
+                return text;
+            }
+            return text
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+        
+        // 格式化表格消息
+        function formatTableMessage(data) {
+            if (!data || !Array.isArray(data)) {
+                return String(data);
+            }
+            
+            let tableHtml = '<table border="1" style="border-collapse: collapse; width: 100%; margin: 10px 0;">';
+            
+            // 添加表头
+            if (data.length > 0) {
+                const headers = Object.keys(data[0]);
+                tableHtml += '<tr>';
+                headers.forEach(header => {
+                    tableHtml += `<th style="padding: 8px; text-align: left; background-color: #f2f2f2;">${escapeHtml(header)}</th>`;
+                });
+                tableHtml += '</tr>';
+                
+                // 添加表格内容
+                data.forEach(row => {
+                    tableHtml += '<tr>';
+                    headers.forEach(header => {
+                        const value = row[header];
+                        tableHtml += `<td style="padding: 8px;">${escapeHtml(String(value))}</td>`;
+                    });
+                    tableHtml += '</tr>';
+                });
+            }
+            
+            tableHtml += '</table>';
+            return tableHtml;
+        }
+        
+        // 更新AI消息显示，支持HTML格式
+        function updateAIMessage(text) {
+            // 查找最后一个AI消息元素或创建新元素
+            let aiMessageElement = messageArea.lastElementChild;
+            
+            if (!aiMessageElement || !aiMessageElement.classList.contains('ai-message')) {
+                aiMessageElement = document.createElement('div');
+                aiMessageElement.className = 'ai-message';
+                messageArea.appendChild(aiMessageElement);
+            }
+            
+            // 使用innerHTML支持表格等HTML内容
+            aiMessageElement.innerHTML = text;
+            messageArea.scrollTop = messageArea.scrollHeight;
+        }
+        
+        // 初始化
+        async function init() {
+            // 从后端获取会话列表
+            await fetchSessions();
+            
+            // 加载最后使用的会话ID
+            const lastSession = localStorage.getItem('current-chat-session');
+            
+            // 如果没有会话，显示提示信息
+            if (sessions.length === 0) {
+                messageArea.innerHTML = '<div class="system-message">您还没有会话，请新建一个会话开始聊天。</div>';
+            } else if (lastSession) {
+                // 使用最后使用的会话
+                switchSession(lastSession);
+            } else {
+                // 使用第一个会话
+                switchSession(sessions[0].sessionId);
+            }
+        }
+        
+        // 发送按钮点击事件
+        sendButton.addEventListener('click', () => {
+            const message = messageInput.value.trim();
+            if (message) {
+                sendChatMessage(message);
+            }
+        });
+        
+        // 输入框回车事件
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                const message = messageInput.value.trim();
+                if (message) {
+                    sendChatMessage(message);
+                }
+            }
+        });
+        
+        // 新建会话按钮事件
+        newSessionBtn.addEventListener('click', async () => {
+            try {
+                // 调用后端接口创建新会话
+                const response = await fetch('http://localhost:8503/c2000/ai/session/create', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        sessionName: '新会话' // 默认会话名称
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.code === 0 && result.data) {
+                    // 重新获取会话列表
+                    await fetchSessions();
+                    
+                    // 切换到新创建的会话
+                    const newSessionId = result.data.sessionId;
+                    switchSession(newSessionId);
+                    
+                    // 保存当前会话ID到localStorage
+                    localStorage.setItem('current-chat-session', newSessionId);
+                    
+                    // 显示成功消息
+                    addMessage({
+                        messageType: 'system',
+                        messageContent: '新建会话成功！',
+                        sendTime: new Date()
+                    });
+                } else {
+                    console.error('新建会话失败:', result.msg);
+                    addMessage({
+                        messageType: 'system',
+                        messageContent: `新建会话失败: ${result.msg || '未知错误'}`,
+                        sendTime: new Date()
+                    });
+                }
+            } catch (error) {
+                console.error('新建会话出错:', error);
+                addMessage({
+                    messageType: 'system',
+                    messageContent: `新建会话出错: ${error.message}`,
+                    sendTime: new Date()
+                });
+            }
+        });
+        
+        // 初始化应用
+        init();
+    </script>
+</body>
+</html>
